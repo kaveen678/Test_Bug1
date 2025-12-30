@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Live TV</title>
+    <meta name="referrer" content="no-referrer">
+    <style>
+        body { background: #000; color: #fff; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .header { padding: 10px; text-align: center; background: #111; border-bottom: 1px solid #007bff; }
+        .main { display: flex; flex: 1; overflow: hidden; }
+        #video-player { flex: 3; background: #000; width: 100%; height: 100%; }
+        #sidebar { flex: 1; background: #111; display: flex; flex-direction: column; border-left: 1px solid #333; }
+        .search { padding: 10px; background: #222; border: none; color: #fff; border-bottom: 1px solid #333; }
+        #list { overflow-y: auto; flex: 1; }
+        .item { padding: 12px; border-bottom: 1px solid #222; cursor: pointer; font-size: 14px; }
+        .item:hover { background: #333; }
+        .item.active { background: #007bff; }
+        @media (max-width: 768px) { .main { flex-direction: column; } #sidebar { height: 300px; flex: none; } }
+    </style>
+</head>
+<body>
+
+<div class="header">LIVE STREAMING - FINAL FIX</div>
+<div class="main">
+    <video id="video-player" controls autoplay playsinline></video>
+    <div id="sidebar">
+        <input type="text" id="search" class="search" placeholder="Search Channel...">
+        <div id="list">Loading...</div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+<script>
+    const video = document.getElementById('video-player');
+    const listDiv = document.getElementById('list');
+    const searchInput = document.getElementById('search');
+    const m3uUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://is.gd/woSv8q.m3u");
+
+    let hls = new Hls({
+        xhrSetup: function (xhr, url) {
+            xhr.withCredentials = false;
+        }
+    });
+
+    async function loadList() {
+        try {
+            const res = await fetch(m3uUrl);
+            const text = await res.text();
+            const lines = text.split('\n');
+            let channels = [];
+            let name = "";
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith('#EXTINF:')) {
+                    name = line.split(',').pop();
+                } else if (line.startsWith('http')) {
+                    channels.push({ name, url: line });
+                }
+            });
+
+            const render = (items) => {
+                listDiv.innerHTML = "";
+                items.forEach(c => {
+                    const d = document.createElement('div');
+                    d.className = 'item';
+                    d.innerText = c.name;
+                    d.onclick = () => {
+                        if (Hls.isSupported()) {
+                            hls.loadSource(c.url);
+                            hls.attachMedia(video);
+                            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            video.src = c.url;
+                            video.play();
+                        }
+                        document.querySelectorAll('.item').forEach(i => i.classList.remove('active'));
+                        d.classList.add('active');
+                    };
+                    listDiv.appendChild(d);
+                });
+            };
+
+            render(channels);
+            searchInput.oninput = () => {
+                render(channels.filter(c => c.name.toLowerCase().includes(searchInput.value.toLowerCase())));
+            };
+
+        } catch (e) {
+            listDiv.innerHTML = "Error loading list.";
+        }
+    }
+
+    loadList();
+</script>
+</body>
+</html>
